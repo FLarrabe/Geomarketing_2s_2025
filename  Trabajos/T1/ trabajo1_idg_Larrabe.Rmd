@@ -1,5 +1,49 @@
 ---
-title: " trabajo1_idg_Larrabe"
+title: "Análisis GeoEspacial: Maternidad Adolescente vs Educación"
+subtitle: "Trabajo N° 1 - Geomarketing"
+author: "Felipe Larrabe Cabrera"
+date: "`r Sys.Date()`"
 output: html_document
 ---
 
+# 1 - Introducción
+
+La maternidad adolescente representa un desafío crítico para las políticas públicas en Chile, especialmente en lo que respecta a la salud, la educación y la equidad social. Esta problemática, más allá de ser un asunto de salud reproductiva, tiene profundas implicancias en la trayectoria de vida de las jóvenes afectadas, limitando sus oportunidades educativas, laborales y de movilidad social.
+
+Diversos estudios evidencian una correlación negativa entre la maternidad temprana y la continuidad educacional, donde las adolescentes que son madres presentan una mayor propensión a abandonar el sistema escolar. Esta situación tiende a perpetuar ciclos de pobreza y exclusión, dificultando la superación de barreras estructurales que afectan a estas jóvenes y a sus familias.
+
+El embarazo adolescente se relaciona bidireccionalmente con la pobreza multidimensional: las condiciones socioeconómicas adversas aumentan su ocurrencia, y a su vez, la maternidad temprana profundiza las desigualdades preexistentes. En este contexto, es fundamental incorporar una perspectiva territorial que permita identificar patrones espaciales y zonas críticas donde coinciden altas tasas de maternidad adolescente con baja asistencia educacional.
+
+Este trabajo busca analizar espacialmente la relación entre maternidad adolescente y la permanencia en el sistema educativo, en las zonas urbanas del Gran Santiago (Provincia de Santiago y comunas de Puente Alto y San Bernardo), con el propósito de generar evidencia empírica que contribuya a la toma de decisiones y al diseño de políticas públicas efectivas para reducir la ocurrencia de estos casos en las zonas más vulnerables. Para ello, se utilizaron datos del CENSO 2017 de mujeres adolescentes (15-19 años), empleando herramientas como PostgreSQL para el manejo de datos y Rstudio para el análisis espacial, junto con la librería “biscale” para la generación de mapas bivariados que visualizan la relación entre madres adolescentes y su permanencia en el sistema educativo.
+
+## 1.1 - Objetivo General
+
+Explorar y analizar la distribución espacial de la maternidad adolescente y su relación con la asistencia educacional en mujeres adolescentes (15 a 19 años) en zonas urbanas seleccionadas de la Región Metropolitana de Santiago, utilizando datos del CENSO 2017 y representaciones bivariadas.
+
+## 1.2 - Objetivos Específicos
+
+-   Identificar las zonas censales urbanas con mayores tasas de maternidad adolescente en la zona Urbana del Gran Santiago.
+-   Analizar la distribución de la asistencia educacional entre adolescentes en las mismas zonas.
+-   Generar mapas bivariados que permitan visualizar la intersección entre ambas vulnerabilidades a nivel territorial.
+-   Detectar patrones espaciales críticos que evidencien mayor vulnerabilidad socioeducativa.
+-   Proponer posibles factores contextuales que expliquen los patrones observados y discutan su implicancia para el diseño de políticas públicas focalizadas.
+
+------------------------------------------------------------------------
+
+# 2 - Desarrollo
+
+## 2.1 - Metodología
+
+### 2.1.1 - Librerías
+
+### 2.1.2 - Conexión
+
+### 2.1.2 - Indicadores (SQL)
+
+### 2.1.2 - Despliegue Cartográfico
+
+## 2.2 - Análisis y Resultados
+
+# 3 - Conclusión
+
+# 4 - Bibliografía
