@@ -102,7 +102,7 @@ ggplot(df_indicadores, aes(x = asistencia_educacional)) +
 #=============================================================================
 # 6.1) CUADRANTES DE DISPERSIÓN (Scatterplott)
 #=============================================================================
-# Calcular Terciles
+# Calcular Terciles (en realidad son cuartiles 25% y 75%)
 q_maternidad <- quantile(sf_mapa$maternidad_adolescente, probs = c(0.25, 0.75), na.rm = TRUE)
 q_educacion <- quantile(sf_mapa$asistencia_educacional, probs = c(0.25, 0.75), na.rm = TRUE)
 
@@ -120,7 +120,7 @@ sf_mapa$nivel_educacion <- with(sf_mapa, ifelse(
 # Crear 9 Clasificaciones 
 sf_mapa$cuadrante <- paste("Maternidad", sf_mapa$nivel_maternidad, "/ Educación", sf_mapa$nivel_educacion)
 
-# Paleta de 9 tonos de azul
+# Paleta de 9 tonos de azul con los nombres completos
 colores_cuadrantes <- c(
   "Maternidad Alta / Educación Alta" = "#08306B",
   "Maternidad Alta / Educación Media" = "#08519C",
@@ -140,7 +140,7 @@ grafico_cuadrantes <- ggplot(sf_mapa, aes(x = maternidad_adolescente, y = asiste
   geom_vline(xintercept = q_maternidad[2], linetype = "dotted", color = "darkred") +
   geom_hline(yintercept = q_educacion[1], linetype = "dotted", color = "darkred") +
   geom_hline(yintercept = q_educacion[2], linetype = "dotted", color = "darkred") +
-  geom_smooth(method = "glm", se = FALSE, color = "darkred", linetype = "longdash", size= 0.7) + #linea de tendencia, metodo de ajuste de regresion lineal
+  geom_smooth(method = "glm", se = FALSE, color = "darkred", linetype = "longdash", size= 0.7) +
   scale_color_manual(values = colores_cuadrantes) +
   labs(
     x = "Tasa de Maternidad Adolescente (%)",
@@ -150,10 +150,12 @@ grafico_cuadrantes <- ggplot(sf_mapa, aes(x = maternidad_adolescente, y = asiste
   ) +
   theme_minimal() +
   theme(
-    legend.title = element_text(size = 10),
-    legend.text = element_text(size = 8),
+    legend.text = element_text(size = 6),  # Ajusta el tamaño de la letra de la leyenda
+    legend.title = element_text(size = 8),
+    legend.key.size = unit(0.3, "cm"),     # Tamaño de los iconos de la leyenda
     legend.position = "bottom"
-  )
+  ) +
+  guides(color = guide_legend(nrow = 3, byrow = TRUE))  # Organiza la leyenda en 3 filas
 
 # Mostrar gráfico
 print(grafico_cuadrantes)
