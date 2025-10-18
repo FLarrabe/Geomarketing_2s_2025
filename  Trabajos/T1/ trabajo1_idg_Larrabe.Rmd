@@ -26,7 +26,6 @@ Explorar y analizar la distribución espacial de la maternidad adolescente y su 
 -   Analizar la distribución de la asistencia educacional entre adolescentes en las mismas zonas.
 -   Generar mapas bivariados que permitan visualizar la intersección entre ambas vulnerabilidades a nivel territorial.
 -   Detectar patrones espaciales críticos que evidencien mayor vulnerabilidad socioeducativa.
--   Proponer posibles factores contextuales que expliquen los patrones observados y discutan su implicancia para el diseño de políticas públicas focalizadas.
 
 ------------------------------------------------------------------------
 
@@ -34,7 +33,11 @@ Explorar y analizar la distribución espacial de la maternidad adolescente y su 
 
 ## 2.1 - Metodología
 
+Se utilizaron los programas RStudio (versión RStudio 2025.09.1+401 (Windows)) y PostgreSQL (versión 13) para el análisis de datos y gestión de la base de datos del Censo 2017. El análisis se centró en la población de mujeres adolescentes (15-19 años) de las zonas urbanas de la provincia de Santiago y de las comunas de Puente Alto y San Bernardo, con el objetivo de examinar la relación entre la maternidad adolescente y la permanencia en el sistema educativo. Para ello, se calcularon indicadores de tasa de maternidad adolescente y tasa de asistencia a educación formal en este grupo poblacional.
+
 ### 2.1.1 - Librerías
+
+Para poder analizar los datos en Rstudio fue necesario ocupar las siguientes librerías:
 
 ```{r Librerias, echo=TRUE, message=FALSE, warning=FALSE}
 library(DBI)
@@ -46,7 +49,11 @@ library(biscale)
 library(dplyr)
 ```
 
+Las librerías DBI y RPostgres permiten la conexión y consulta a bases de datos PostgreSQL; sf maneja datos espaciales y geometrías para mapas; ggplot2 genera visualizaciones y gráficos estáticos; cowplot combina y organiza múltiples gráficos en un mismo layout; biscale crea mapas bivariados que representan dos variables simultáneamente mediante escalas de color; y dplyr facilita la manipulación y transformación de datos mediante una sintaxis intuitiva y consistente.
+
 ### 2.1.2 - Conexión al Servidor de la Base de Datos SQL
+
+La conexión al servidor SQL con los datos del censo de la Región Metropolitana de Chile, se estableció en utilizando a los siguientes parámetros:
 
 ```{r Conexion al servidor de SQL, message=FALSE, warning=FALSE}
 con <- dbConnect(
@@ -60,6 +67,8 @@ con <- dbConnect(
 ```
 
 ### 2.1.2 - Indicadores (SQL)
+
+Las variables a utilizar del censo 2017 fueron las siguientes:
 
 | Variable | Descripción | Tipo de datos y rangos | Valores escogidos |
 |:---------------|:---------------------|:---------------:|:-----------------:|
@@ -108,9 +117,27 @@ ORDER BY maternidad_adolescente DESC;
 df_indicadores <- dbGetQuery(con, sql_indicadores)
 ```
 
-geometrias
+En donde la tasa de Maternidad Adolescente fue calculada como:
 
-```{r Geometria y datos tabulares, message=FALSE, warning=FALSE, include=FALSE}
+$$
+\text{Tasa de Maternidad} = \left( \frac{\text{Número de mujeres (15-19 años, con al menos 1 Hijo vivo}}{\text{Total de mujeres en el grupo etario( 15-19 años}} \right) \times 100\
+$$
+
+Utilizando los siguientes filtros en SQL:
+
+$p.p08 = 2$ $AND$ $p.p09$ $BETWEEN$ $15$ $AND$ $19$ $AND$ $p.p19 >= 1$ , siendo esto el número de mujeres adolescentes con un hijo y $p.p08 = 2$ $AND$ $p.p09$ $BETWEEN$ $15$ $AND$ $19$ el total de mujeres adolescentes
+
+Por otra parte, la tasa de Asistencia o prosecución de estudios, es calcula de la siguiente forma:
+
+$$
+\text{Tasa de Asistencia Educacional} = \left( \frac{\text{Número de mujeres (15-19 años), que asisten a educación formal}}{\text{Total de mujeres en el grupo etario( 15-19 años}} \right) \times 100\
+$$
+
+Siendo el número de mujeres que asiste a educación formal, obtenido a través de este código SQL: $p.p08 = 2$ $AND$ $p.p09$ $BETWEEN$ $15$ $AND$ $19$ $AND$ $p.p13 = 1$ .
+
+Con las tablas generadas por estas tasas a nivel de unidad censal, se aplicó un filtro en donde se restringió el área de estudio a las zonas urbanas de la provincia de Santiago y las comunas de puente alto y san bernardo, para luego unir dichos datos tabulares con las geometrías a través de los geocodigos presentes en la base de datos.
+
+```{r Geometria y datos tabulares, message=FALSE, warning=FALSE}
 #=============================================================================
 # 4) CARGAR GEOMETRÍA DE ZONAS CENSALES CON LOS MISMOS FILTROS
 #=============================================================================
@@ -132,24 +159,35 @@ sf_mapa <- left_join(sf_zonas, df_indicadores, by = "geocodigo")
 
 ### 2.2.1 Analisis exploratorio de datos
 
+Con el objetivo de comprender la distribución y relación entre las variables de estudio, se realizó un análisis exploratorio de los datos. Inicialmente, se examinó la dispersión de cada variable mediante histogramas para determinar la forma más adecuada de representar las diferencias en su distribución. Posteriormente, se analizó la correlación entre ambas variables a través de un diagrama de dispersión (scatterplot), donde cada punto fue clasificado en tres categorías (baja, media y alta) basadas en **cuartiles** (utilizando los percentiles 25% y 75% como puntos de corte), permitiendo visualizar patrones de asociación entre la maternidad adolescente y la asistencia educacional de manera más efectiva.
+
 ```{r Histograma_maternidad, echo=FALSE, message=FALSE, warning=FALSE}
-# Histogramas
+# Histograma maternidad adolescente
 ggplot(df_indicadores, aes(x = maternidad_adolescente)) +
   geom_histogram(bins = 30, fill = '#226e6e', color = 'white') +
+  geom_vline(aes(xintercept = median(maternidad_adolescente, na.rm = TRUE)),
+             color = "red", linetype = "dashed", size = 1) +
   labs(title = "Distribución de % Maternidad Adolescente",
        x = "% Maternidad Adolescente",
        y = "Frecuencia") +
   theme_minimal()
 ```
 
+Es posible apreciar, a partir de la figura, que por lo general la maternidad adolescente posee valores bajos evidenciado en la concentración significativa de los datos entre el 10% y el 30%, con una mediana cercana al 22%. La distribución presenta una asimetría positiva, evidenciada por una mayor frecuencia de valores en torno al 20%, lo que indica que la mayoría de las observaciones se agrupan en ese rango. A partir del 30%, la frecuencia disminuye progresivamente, lo que sugiere que los valores más altos son menos comunes. Aquellos superiores al 60% podrían considerarse valores atípicos.
+
 ```{r Histograma_asistencia, echo=FALSE, message=FALSE, warning=FALSE}
+# Histograma asistencia educacional
 ggplot(df_indicadores, aes(x = asistencia_educacional)) +
   geom_histogram(bins = 30, fill = '#6e6b22', color = 'white') +
+  geom_vline(aes(xintercept = median(asistencia_educacional, na.rm = TRUE)),
+             color = "red", linetype = "dashed", size = 1) +
   labs(title = "Distribución de % Asistencia Educacional",
        x = "% Asistencia Educacional",
        y = "Frecuencia") +
   theme_minimal()
 ```
+
+El histograma de asistencia educacional presenta una distribución asimétrica con sesgo positivo, donde la mayor concentración de datos se ubica entre el 70% y 90%, indicando que la mayoría de las zonas censales muestran altos niveles de asistencia. La mediana representada con una línea roja se encuentra alrededor del 80%. Los valores inferiores al 60% presentan baja frecuencia, posiblemente correspondiendo a valores atípicos o casos excepcionales dentro del conjunto de datos, lo que refleja una tendencia generalizada hacia la permanencia educacional en la población de mujeres adolescentes.
 
 ```{r Scatterplot, echo=FALSE, message=FALSE, warning=FALSE}
 #=============================================================================
