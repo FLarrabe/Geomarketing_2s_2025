@@ -8,11 +8,11 @@ output: html_document
 
 # 1 - Introducción
 
-La maternidad adolescente representa un desafío crítico para las políticas públicas en Chile, especialmente en lo que respecta a la salud, la educación y la equidad social. Esta problemática, más allá de ser un asunto de salud reproductiva, tiene profundas implicancias en la trayectoria de vida de las jóvenes afectadas, limitando sus oportunidades educativas, laborales y de movilidad social.
+La maternidad adolescente representa un desafío crítico para las políticas públicas en Chile, especialmente en lo que respecta a la salud, la educación y la equidad social. Esta problemática, más allá de ser un asunto de salud reproductiva, tiene profundas implicancias en la trayectoria de vida de las jóvenes afectadas, limitando sus oportunidades educativas, laborales y de movilidad social. Como señala Huerta Wong (2012, p. 67), "La escolaridad es considerada una herramienta poderosa para superar barreras estructurales, principalmente en poblaciones vulnerables". Sin embargo, la maternidad temprana frecuentemente interrumpe este camino, perpetuando ciclos de pobreza y exclusión.
 
-Diversos estudios evidencian una correlación negativa entre la maternidad temprana y la continuidad educacional, donde las adolescentes que son madres presentan una mayor propensión a abandonar el sistema escolar. Esta situación tiende a perpetuar ciclos de pobreza y exclusión, dificultando la superación de barreras estructurales que afectan a estas jóvenes y a sus familias.
+Diversos estudios evidencian una correlación negativa entre la maternidad temprana y la continuidad educacional, donde las adolescentes que son madres presentan una mayor propensión a abandonar el sistema escolar. Esta situación no solo afecta el capital humano individual, sino que tiene implicancias en el desarrollo económico nacional y en la capacidad de las jóvenes para ascender en la escala socioeconómica.
 
-El embarazo adolescente se relaciona bidireccionalmente con la pobreza multidimensional: las condiciones socioeconómicas adversas aumentan su ocurrencia, y a su vez, la maternidad temprana profundiza las desigualdades preexistentes. En este contexto, es fundamental incorporar una perspectiva territorial que permita identificar patrones espaciales y zonas críticas donde coinciden altas tasas de maternidad adolescente con baja asistencia educacional.
+El embarazo adolescente se relaciona bidireccionalmente con la pobreza multidimensional: las condiciones socioeconómicas adversas aumentan su ocurrencia, y a su vez, la maternidad temprana profundiza las desigualdades preexistentes. En este contexto, resulta fundamental incorporar una perspectiva territorial que permita identificar patrones espaciales y zonas críticas donde coinciden altas tasas de maternidad adolescente con baja asistencia educacional.
 
 Este trabajo busca analizar espacialmente la relación entre maternidad adolescente y la permanencia en el sistema educativo, en las zonas urbanas del Gran Santiago (Provincia de Santiago y comunas de Puente Alto y San Bernardo), con el propósito de generar evidencia empírica que contribuya a la toma de decisiones y al diseño de políticas públicas efectivas para reducir la ocurrencia de estos casos en las zonas más vulnerables. Para ello, se utilizaron datos del CENSO 2017 de mujeres adolescentes (15-19 años), empleando herramientas como PostgreSQL para el manejo de datos y Rstudio para el análisis espacial, junto con la librería “biscale” para la generación de mapas bivariados que visualizan la relación entre madres adolescentes y su permanencia en el sistema educativo.
 
@@ -193,7 +193,7 @@ El histograma de asistencia educacional presenta una distribución asimétrica c
 #=============================================================================
 # 6.1) CUADRANTES DE DISPERSIÓN (Scatterplott)
 #=============================================================================
-# Calcular Terciles
+# Calcular Terciles (en realidad son cuartiles 25% y 75%)
 q_maternidad <- quantile(sf_mapa$maternidad_adolescente, probs = c(0.25, 0.75), na.rm = TRUE)
 q_educacion <- quantile(sf_mapa$asistencia_educacional, probs = c(0.25, 0.75), na.rm = TRUE)
 
@@ -211,7 +211,7 @@ sf_mapa$nivel_educacion <- with(sf_mapa, ifelse(
 # Crear 9 Clasificaciones 
 sf_mapa$cuadrante <- paste("Maternidad", sf_mapa$nivel_maternidad, "/ Educación", sf_mapa$nivel_educacion)
 
-# Paleta de 9 tonos de azul
+# Paleta de 9 tonos de azul con los nombres completos
 colores_cuadrantes <- c(
   "Maternidad Alta / Educación Alta" = "#08306B",
   "Maternidad Alta / Educación Media" = "#08519C",
@@ -231,7 +231,7 @@ grafico_cuadrantes <- ggplot(sf_mapa, aes(x = maternidad_adolescente, y = asiste
   geom_vline(xintercept = q_maternidad[2], linetype = "dotted", color = "darkred") +
   geom_hline(yintercept = q_educacion[1], linetype = "dotted", color = "darkred") +
   geom_hline(yintercept = q_educacion[2], linetype = "dotted", color = "darkred") +
-  geom_smooth(method = "glm", se = FALSE, color = "darkred", linetype = "longdash", size= 0.7) + #linea de tendencia, metodo de ajuste de regresion lineal
+  geom_smooth(method = "glm", se = FALSE, color = "darkred", linetype = "longdash", size= 0.7) +
   scale_color_manual(values = colores_cuadrantes) +
   labs(
     x = "Tasa de Maternidad Adolescente (%)",
@@ -241,20 +241,38 @@ grafico_cuadrantes <- ggplot(sf_mapa, aes(x = maternidad_adolescente, y = asiste
   ) +
   theme_minimal() +
   theme(
-    legend.title = element_text(size = 0),
-    legend.text = element_text(size = 4),
+    legend.text = element_text(size = 6),  # Ajusta el tamaño de la letra de la leyenda
+    legend.title = element_text(size = 8),
+    legend.key.size = unit(0.3, "cm"),     # Tamaño de los iconos de la leyenda
     legend.position = "bottom"
-  )
+  ) +
+  guides(color = guide_legend(nrow = 3, byrow = TRUE))  # Organiza la leyenda en 3 filas
 
 # Mostrar gráfico
 print(grafico_cuadrantes)
 ```
 
-Debido a que si se desestimaran los valores outliers, la concentracion de los datos es muy marcada en los porcentaje que fueron vistos en los Histogramas, será necesario utilizar percentiles de corte a 25% y 75%, de forma que sea mas facil la visualizacion de las diferencias de las relaciones en el territorio generando, valores bajos, medios y altos. El grafico Scatterplot muestra la existencia de una correlacion negativa, a traves de una linea de tendencia realizada con el metodo lm, que es basicamente una regresion lineal en el podemos distinguir 9 categorias generadas por los valores de corte mencionados anteriormente, donde:
+Debido a la marcada concentración de los datos observada en los histogramas, se optó por utilizar los percentiles 25% y 75% como puntos de corte para clasificar los valores en tres categorías (baja, media y alta), facilitando así la visualización de las diferencias territoriales en las relaciones entre las variables.
 
--- tengo que arreglar este grafico
+El gráfico de dispersión evidencia una clara correlación negativa entre la maternidad adolescente y la asistencia educacional, representada mediante una línea de tendencia roja ajustada por regresión lineal (método lm). Esta relación indica que, a medida que aumenta la tasa de maternidad adolescente, tiende a disminuir la asistencia educacional.
 
-colores_cuadrantes \<- c( "Maternidad Alta / Educación Alta" = "#08306B", "Maternidad Alta / Educación Media" = "#08519C", "Maternidad Alta / Educación Baja" = "#2171B5", "Maternidad Media / Educación Alta" = "#4292C6", "Maternidad Media / Educación Media" = "#6BAED6", "Maternidad Media / Educación Baja" = "#9ECAE1", "Maternidad Baja / Educación Alta" = "#C6DBEF", "Maternidad Baja / Educación Media" = "#DEEBF7", "Maternidad Baja / Educación Baja" = "#F7FBFF" )
+La visualización organiza los datos en nueve categorías utilizando una paleta de azules progresivos donde:
+
+-   Los tonos más oscuros (azules profundos) indican mayor maternidad adolescente
+
+-   Los tonos más claros (azules pálidos) representan mayor asistencia educacional
+
+-   Las combinaciones intermedias (azules medios) muestran situaciones equilibradas
+
+Las líneas punteadas rojas demarcan los puntos de corte de los cuartiles, dividiendo el gráfico en segmentos que permiten identificar patrones específicos:
+
+-   Esquina superior izquierda: Baja maternidad y alta educación (tonos claros)
+
+-   Esquina inferior derecha: Alta maternidad y baja educación (tonos oscuros)
+
+-   Área central: Combinaciones intermedias que reflejan realidades socioeducativas más complejas
+
+La distribución de puntos revela una concentración significativa en las categorías de maternidad media y baja con educación media y alta, mientras que las combinaciones de alta maternidad con baja educación, aunque menos frecuentes, representan los casos de mayor vulnerabilidad socioeducativa que requieren atención prioritaria en el diseño de políticas públicas.
 
 ------------------------------------------------------------------------
 
@@ -316,11 +334,37 @@ Teniendo en cuenta la información obtenida del EDA, se escogió utilizar percen
 print(map_maternidad_cuartiles)
 ```
 
-El despliegue cartográfico muestra la distribución de la tasa de maternidad adolescente (15-19 años) en el Gran Santiago, clasificada por cuartiles. Esta representación permite identificar con claridad las diferencias territoriales en la incidencia del fenómeno. Se observa una concentración de zonas con altas tasas de maternidad adolescente (Q4) en sectores periféricos y del sur de la ciudad, especialmente en algunas zonas censales del sector poniente-norte, así como en comunas como Puente Alto y San Bernardo. En contraste, las zonas con menor incidencia (Q1) se ubican principalmente en el sector oriente y en algunas áreas del centro, donde las tasas son considerablemente más bajas. Esta distribución evidencia desigualdades territoriales que podrían estar relacionadas con factores estructurales como el acceso a la educación, servicios de salud sexual y reproductiva, y condiciones socioeconómicas más amplias.
+El despliegue cartográfico muestra la distribución de la tasa de maternidad adolescente (15-19 años) en el Gran Santiago, clasificada por cuartiles. Esta representación permite identificar con claridad las diferencias territoriales en la incidencia del fenómeno.
+
+Los colores representan los rangos de los Cuartiles:
+
+-   Q1: Representado en color blanco, agrupa las zonas con las tasas más bajas de maternidad adolescente.
+
+-   Q2 y Q3: En tonos crecientes de azul claro, muestran valores intermedios del indicador.
+
+-   Q4: En azul oscuro, destaca las zonas con las tasas más altas de maternidad.
+
+-   NA: corresponden a las zonas con datos no disponibles.
+
+Se observa una concentración de zonas con altas tasas de maternidad adolescente (Q4) en sectores periféricos y del sur de la ciudad, especialmente en algunas zonas censales del sector poniente-norte, así como en comunas como Puente Alto y San Bernardo. En contraste, las zonas con menor incidencia (Q1) se ubican principalmente en el sector oriente y en algunas áreas del centro, donde las tasas son considerablemente más bajas. Esta distribución evidencia desigualdades territoriales que podrían estar relacionadas con factores estructurales como el acceso a la educación, servicios de salud sexual y reproductiva, y condiciones socioeconómicas más amplias.
+
+------------------------------------------------------------------------
 
 ```{r Asistencia educación, echo=FALSE, message=FALSE, warning=FALSE}
 print(map_educacion_cuartiles)
 ```
+
+El mapa representa las tasas de participación en educación formal del grupo poblacional de mujeres adolescentes, distribuidas a largo del territorio del Gran Santiago. Cada cuartil representa un nivel distinto de asistencia educacional en donde:
+
+-   Q1 (Bajo): Áreas en color amarillo claro, representan las zonas con los niveles más bajos de asistencia educacional.
+
+-   Q2 y Q3: en tonos naranja y rojo, indican niveles intermedios.
+
+-   Q4: Utiliza el color rojo oscuro, destacando las zonas con alta asistencia educacional adolescente (concentraciones de datos que superan al percentil 75%)
+
+-   NA: Zonas con datos faltantes o no disponibles.
+
+Es posible apreciar como existe una concentración de zonas con cuartil Q4 en el sector oriente y noroeste del Gran Santiago, mientras que los niveles más bajos (Q1) se distribuyen principalmente en sectores de la zona sur y poniente, como ciertas áreas de las comunas de la Pintana, San Ramon, Lo Espejo y Cerro Navia.
 
 ### 2.3.2- Mapa Bivariado
 
@@ -396,10 +440,38 @@ mapa_final <- ggdraw() +
 print(mapa_final)
 ```
 
+El mapa bivariado muestra la relación espacial entre la maternidad adolescente y la asistencia educacional en las zonas urbanas del Gran Santiago según el Censo 2017. Ambas variables fueron clasificadas en terciles, de modo que los colores representan la combinación de sus niveles relativos:
+
+-   Rojo intenso: alta maternidad adolescente y baja asistencia educacional.
+
+-   Azul intenso: baja maternidad adolescente y alta asistencia educacional.
+
+-   Tonos intermedios (violetas o lilas): valores medios o combinaciones equilibradas entre ambas variables.
+
+Teniendo en cuenta este gradiente de color es posible identificar la concentración de tonos rojos en el sur y poniente de Santiago, especialmente en comunas como La Pintana, San Ramón, El Bosque y partes de Puente Alto, lo que refleja altas tasas de maternidad adolescente y baja asistencia educacional.
+
+Por el contrario, las zonas nororiente y oriente (como Las Condes, Vitacura, Ñuñoa y Providencia) se caracterizan por tonos azules, indicando baja maternidad adolescente y alta asistencia educacional.
+
+Estos patrones sugieren una fuerte correlación negativa entre ambas variables: a mayor asistencia educacional, menor incidencia de maternidad adolescente. Asimismo, el mapa evidencia la segregación socioespacial existente en el área metropolitana, donde las desigualdades educativas y reproductivas se distribuyen territorialmente de forma desigual.
+
 # 3 - Conclusión
+
+El presente estudio permitió identificar patrones espaciales significativos en la distribución de la maternidad adolescente y su relación con la asistencia educacional en el Gran Santiago. Los resultados confirman la existencia de una clara correlación negativa entre ambas variables, evidenciando que las zonas con mayores tasas de maternidad adolescente tienden a presentar menores niveles de asistencia educacional, y viceversa.
+
+El análisis espacial reveló una marcada segregación territorial, donde las comunas del sector oriente (Las Condes, Vitacura, Ñuñoa) muestran consistentemente bajas tasas de maternidad adolescente y altos niveles de asistencia educacional. Por el contrario, las comunas del sur y poniente de la ciudad (La Pintana, San Ramón, El Bosque, sectores de Puente Alto y San Bernardo) concentran las situaciones de mayor vulnerabilidad, con altas tasas de maternidad adolescente y baja asistencia educacional.
+
+Estos hallazgos adquieren especial relevancia al considerar que, si bien a nivel nacional se han registrado avances en la reducción del embarazo adolescente, como señala Orellana (2025, citado en CNN Chile): "Es una buena noticia porque los embarazos adolescentes suelen estar asociados a trayectorias de pobreza, de cesión escolar y también pobreza país. Es un indicador de desarrollo, porque se combina educación, permanencia en la educación, acceso a anticonceptivos e información". Sin embargo, esta investigación demuestra que estas mejoras no se han distribuido de manera homogénea en el territorio, existiendo localidades con una alta ocurrencia de embarazo adolescente que reflejan la profundidad de la segregación espacial en la región metropolitana.
+
+Los resultados respaldan además la afirmación de Huerta Wong (2012) sobre el rol fundamental de la educación como herramienta para superar barreras estructurales. La evidencia sugiere que intervenciones focalizadas en promover la permanencia escolar en territorios críticos podrían contribuir significativamente a reducir la incidencia de la maternidad adolescente, especialmente en contextos de desventaja socioeconómica.
+
+Desde la perspectiva de políticas públicas, los mapas bivariados generados constituyen una herramienta valiosa para la focalización territorial de intervenciones, permitiendo identificar Zonas Censales específicas que requieren atención prioritaria. La metodología empleada demuestra el valor del análisis geoespacial para comprender fenómenos sociales complejos y diseñar estrategias de intervención más efectivas y contextualizadas.
+
+Finalmente, este estudio subraya la necesidad de abordar la problemática de la maternidad adolescente desde un enfoque integral que combine componentes educativos, de salud sexual y reproductiva, y de desarrollo socioeconómico, considerando siempre las particularidades territoriales que caracterizan la distribución de estas vulnerabilidades en el espacio urbano.
 
 # 4 - Bibliografía
 
 -   Huerta Wong, J. E. (2012). *El rol de la educación en la movilidad social de México y Chile: ¿La desigualdad por otras vías?* Revista Mexicana de Investigación Educativa, 17(52), 65–88. <https://www.scielo.org.mx/pdf/rmie/v17n52/v17n52a4.pdf>
 
--   
+-   Instituto Nacional de Estadísticas (INE). (2017). *Censo de Población y Vivienda 2017*. Recuperado de <https://www.censo2017.cl>
+
+-   CNN Chile. (2025, mayo 3). *Ministra Orellana y caída de la natalidad en Chile: “El descenso radical del embarazo adolescente es algo que nos debe alegrar”*. <https://www.cnnchile.com/pais/ministra-orellana-caida-natalidad-chile-descenso-radical-embarazo-adolescente-algo-debe-alegrar_20250503/>
