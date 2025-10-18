@@ -94,9 +94,9 @@ ggplot(df_indicadores, aes(x = asistencia_educacional)) +
   theme_minimal()
 
 #=============================================================================
-# 7) CUADRANTES DE DISPERSIÓN
+# 6.1) CUADRANTES DE DISPERSIÓN (Scatterplott)
 #=============================================================================
-# Calcular cuartiles
+# Calcular Terciles
 q_maternidad <- quantile(sf_mapa$maternidad_adolescente, probs = c(0.25, 0.75), na.rm = TRUE)
 q_educacion <- quantile(sf_mapa$asistencia_educacional, probs = c(0.25, 0.75), na.rm = TRUE)
 
@@ -111,7 +111,7 @@ sf_mapa$nivel_educacion <- with(sf_mapa, ifelse(
   ifelse(asistencia_educacional >= q_educacion[2], "Alta", "Media")
 ))
 
-# Crear 9 combinaciones
+# Crear 9 Clasificaciones 
 sf_mapa$cuadrante <- paste("Maternidad", sf_mapa$nivel_maternidad, "/ Educación", sf_mapa$nivel_educacion)
 
 # Paleta de 9 tonos de azul
@@ -153,7 +153,7 @@ grafico_cuadrantes <- ggplot(sf_mapa, aes(x = maternidad_adolescente, y = asiste
 print(grafico_cuadrantes)
 
 #=============================================================================
-# 8) MAPAS TEMÁTICOS INDIVIDUALES
+# 7) MAPAS TEMÁTICOS INDIVIDUALES
 #=============================================================================
 cuartiles_maternidad <- quantile(sf_mapa$maternidad_adolescente, probs = c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE)
 cuartiles_educacion <- quantile(sf_mapa$asistencia_educacional, probs = c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE)
@@ -202,7 +202,7 @@ print(map_maternidad_cuartiles)
 print(map_educacion_cuartiles)
 
 #=============================================================================
-# 9) MAPA BIVARIADO CON CUANTILES PERSONALIZADOS
+# 8) MAPA BIVARIADO, CLASIFICADO POR TERCILES
 #=============================================================================
 # Calcular cortes personalizados (terciles) para cada variable
 breaks_maternidad <- quantile(sf_mapa$maternidad_adolescente, probs = c(0, 0.33, 0.66, 1), na.rm = TRUE)
