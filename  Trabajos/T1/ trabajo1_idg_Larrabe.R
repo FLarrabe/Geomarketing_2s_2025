@@ -78,20 +78,26 @@ sf_mapa <- left_join(sf_zonas, df_indicadores, by = "geocodigo")
 #=============================================================================
 # 6) EDA
 #=============================================================================
-# Histogramas
+# Histograma maternidad adolescente
 ggplot(df_indicadores, aes(x = maternidad_adolescente)) +
   geom_histogram(bins = 30, fill = '#226e6e', color = 'white') +
+  geom_vline(aes(xintercept = median(maternidad_adolescente, na.rm = TRUE)),
+             color = "red", linetype = "dashed", size = 1) +
   labs(title = "Distribución de % Maternidad Adolescente",
        x = "% Maternidad Adolescente",
        y = "Frecuencia") +
   theme_minimal()
 
+# Histograma asistencia educacional
 ggplot(df_indicadores, aes(x = asistencia_educacional)) +
   geom_histogram(bins = 30, fill = '#6e6b22', color = 'white') +
+  geom_vline(aes(xintercept = median(asistencia_educacional, na.rm = TRUE)),
+             color = "red", linetype = "dashed", size = 1) +
   labs(title = "Distribución de % Asistencia Educacional",
        x = "% Asistencia Educacional",
        y = "Frecuencia") +
   theme_minimal()
+
 
 #=============================================================================
 # 6.1) CUADRANTES DE DISPERSIÓN (Scatterplott)
