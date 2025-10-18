@@ -93,50 +93,63 @@ ggplot(df_indicadores, aes(x = asistencia_educacional)) +
        y = "Frecuencia") +
   theme_minimal()
 
-# Scatter plot con línea de tendencia
-ggplot(df_indicadores, aes(x = maternidad_adolescente, y = asistencia_educacional)) +
-  geom_point(color = "steelblue", alpha = 0.6) +
-  geom_smooth(method = "lm", color = "darkred", se = TRUE, linetype = "longdash", size= 0.7) +
-  labs(title = 'Relación entre Maternidad Adolescente vs. Asistencia Educacional',
-       x = '% Maternidad Adolescente',
-       y = '% Asistencia Educacional') +
-  theme_minimal()
-
 #=============================================================================
 # 7) CUADRANTES DE DISPERSIÓN
 #=============================================================================
-mediana_maternidad <- median(sf_mapa$maternidad_adolescente, na.rm = TRUE)
-mediana_educacion <- median(sf_mapa$asistencia_educacional, na.rm = TRUE)
+# Calcular cuartiles
+q_maternidad <- quantile(sf_mapa$maternidad_adolescente, probs = c(0.25, 0.75), na.rm = TRUE)
+q_educacion <- quantile(sf_mapa$asistencia_educacional, probs = c(0.25, 0.75), na.rm = TRUE)
 
-sf_mapa$cuadrante <- with(sf_mapa, ifelse(
-  maternidad_adolescente >= mediana_maternidad & asistencia_educacional >= mediana_educacion,
-  'Q1: Alta maternidad / Alta educación',
-  ifelse(maternidad_adolescente >= mediana_maternidad & asistencia_educacional < mediana_educacion,
-         'Q2: Alta maternidad / Baja educación',
-         ifelse(maternidad_adolescente < mediana_maternidad & asistencia_educacional < mediana_educacion,
-                'Q3: Baja maternidad / Baja educación',
-                'Q4: Baja maternidad / Alta educación'))))
+# Clasificar en niveles (bajo, medio, alto)
+sf_mapa$nivel_maternidad <- with(sf_mapa, ifelse(
+  maternidad_adolescente <= q_maternidad[1], "Baja",
+  ifelse(maternidad_adolescente >= q_maternidad[2], "Alta", "Media")
+))
 
+sf_mapa$nivel_educacion <- with(sf_mapa, ifelse(
+  asistencia_educacional <= q_educacion[1], "Baja",
+  ifelse(asistencia_educacional >= q_educacion[2], "Alta", "Media")
+))
+
+# Crear 9 combinaciones
+sf_mapa$cuadrante <- paste("Maternidad", sf_mapa$nivel_maternidad, "/ Educación", sf_mapa$nivel_educacion)
+
+# Paleta de 9 tonos de azul
 colores_cuadrantes <- c(
-  'Q1: Alta maternidad / Alta educación' = '#08519c',
-  'Q2: Alta maternidad / Baja educación' = '#6baed6',
-  'Q3: Baja maternidad / Baja educación' = '#eff3ff',
-  'Q4: Baja maternidad / Alta educación' = '#bdd7e7'
+  "Maternidad Alta / Educación Alta" = "#08306B",
+  "Maternidad Alta / Educación Media" = "#08519C",
+  "Maternidad Alta / Educación Baja" = "#2171B5",
+  "Maternidad Media / Educación Alta" = "#4292C6",
+  "Maternidad Media / Educación Media" = "#6BAED6",
+  "Maternidad Media / Educación Baja" = "#9ECAE1",
+  "Maternidad Baja / Educación Alta" = "#C6DBEF",
+  "Maternidad Baja / Educación Media" = "#DEEBF7",
+  "Maternidad Baja / Educación Baja" = "#F7FBFF"
 )
 
+# gráfico Scatterplot
 grafico_cuadrantes <- ggplot(sf_mapa, aes(x = maternidad_adolescente, y = asistencia_educacional, color = cuadrante)) +
-  geom_point(size = 2, alpha = 0.7) +
-  geom_vline(xintercept = mediana_maternidad, linetype = "dashed", color = "red") +
-  geom_hline(yintercept = mediana_educacion, linetype = "dashed", color = "red") +
+  geom_point(size = 0.6, alpha = 0.8) +
+  geom_vline(xintercept = q_maternidad[1], linetype = "dotted", color = "darkred") +
+  geom_vline(xintercept = q_maternidad[2], linetype = "dotted", color = "darkred") +
+  geom_hline(yintercept = q_educacion[1], linetype = "dotted", color = "darkred") +
+  geom_hline(yintercept = q_educacion[2], linetype = "dotted", color = "darkred") +
+  geom_smooth(method = "glm", se = FALSE, color = "darkred", linetype = "longdash", size= 0.7) + #linea de tendencia, metodo de ajuste de regresion lineal
   scale_color_manual(values = colores_cuadrantes) +
   labs(
     x = "Tasa de Maternidad Adolescente (%)",
     y = "Tasa de Asistencia Educacional (%)",
     title = "Dispersión: Maternidad Adolescente vs Asistencia Educacional",
-    color = "Cuadrante"
+    color = "Clasificación"
   ) +
-  theme_minimal()
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8),
+    legend.position = "bottom"
+  )
 
+# Mostrar gráfico
 print(grafico_cuadrantes)
 
 #=============================================================================
