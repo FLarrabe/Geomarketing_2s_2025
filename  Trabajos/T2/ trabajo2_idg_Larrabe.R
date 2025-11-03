@@ -7,7 +7,7 @@ library(dplyr)
 library(VIM)
 library(ggplot2)
 library(ggspatial)
-
+install.packages("")
 ## 2. Entradas ####
 ruta_casen = "data/casen_rm.rds"
 ruta_censo = "data/cons_censo_df.rds"
@@ -42,18 +42,18 @@ casen$o28b = as.numeric(unclass(casen$o28b))
 casen$ypc = as.numeric(unclass(casen$ypc))
 
 # Estadísticas previas a la imputación de datos
-print("Resumen de Horas trabajadas semanales:")
-print(summary(casen$o10))
-print("Resumen de Tiempo de viaje - Horas:")
-print(summary(casen$o28a_hr))
-print("Resumen de Tiempo de viaje - Minutos:")
-print(summary(casen$o28a_min))
-print("Resumen de Frecuencia de viajes semanales:")
-print(summary(casen$o28b))
-print("Resumen de Escolaridad:")
-print(summary(casen$esc))
-print("Resumen de Ingreso per capita:")
-print(summary(casen$ypc))
+resumen_calidad <- data.frame(
+  Variable = c("o10", "o28a_hr", "o28a_min", "o28b", "esc", "ypc"),
+  NAs = sapply(casen[c("o10", "o28a_hr", "o28a_min", "o28b", "esc", "ypc")], 
+               function(x) sum(is.na(x))),
+  Media = sapply(casen[c("o10", "o28a_hr", "o28a_min", "o28b", "esc", "ypc")], 
+                 function(x) round(mean(x, na.rm = TRUE), 2)),
+  Mediana = sapply(casen[c("o10", "o28a_hr", "o28a_min", "o28b", "esc", "ypc")], 
+                   function(x) median(x, na.rm = TRUE))
+)
+
+print("Resumen de Calidad de Datos - Variables Principales:")
+print(resumen_calidad)
 
 ### 3.3.1 IMPUTACIÓN simple de esc por e6a ####
 idx_na = which(is.na(casen$esc))
@@ -65,7 +65,7 @@ if(length(idx_na) > 0) {
 print("Resumen de las estadisticas de escolaridad:")
 print(summary(casen$esc))
 
-### 3.3.2 IMPUTACIÓN DE DATOS CON KNN POR COMUNA (extendida) ####
+### 3.3.2 IMPUTACIÓN DE DATOS CON KNN POR COMUNA ####
 # Variables objetivo
 vars_imputar <- c("o10", "o28a_hr", "o28a_min", "o28b")
 
@@ -141,7 +141,7 @@ for (v in vars_imputar) {
 print("NA tras fallback global:")
 print(colSums(is.na(casen[, vars_imputar])))
 
-# 5) Recalcular variables derivadas
+# 5) calcular la variables derivada
 casen$tiempo_viaje_minutos <- casen$o28a_hr * 60 + casen$o28a_min
 casen$tiempo_transporte_semanal <- (casen$tiempo_viaje_minutos * casen$o28b) / 60
 casen$carga_laboral_total <- casen$o10 + casen$tiempo_transporte_semanal
@@ -183,7 +183,7 @@ con = dbConnect(Postgres(), dbname = "censo_rm", host = "localhost", port = 5432
 
 # Escribir tabla
 dbWriteTable(con, name = DBI::SQL("output.zonas_carga_laboral"), 
-             value = zonas_carga_laboral, row.names = FALSE)
+             value = zonas_carga_laboral, row.names = FALSE, overwrite = TRUE)
 
 query_gs = "SELECT * FROM dpa.zonas_censales_rm WHERE urbano = 1 AND (nom_provin = 'SANTIAGO' OR nom_comuna IN ('PUENTE ALTO', 'SAN BERNARDO'))"
 zonas_gs = st_read(con, query = query_gs)

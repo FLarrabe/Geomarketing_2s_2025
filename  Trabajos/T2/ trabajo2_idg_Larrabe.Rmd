@@ -1,0 +1,561 @@
+---
+title: "Análisis GeoEspacial: Carga Laboral"
+subtitle: "Trabajo N° 2 - Geomarketing"
+author: "Felipe Larrabe Cabrera"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cerulean
+    highlight: zenburn
+---
+
+```{r Setup directorio, message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+setwd("C:/Users/felip/Escritorio/U/2025_2s/Geomarketing/Repositorio/Geomarketing_2s_2025/") 
+file.exists("data/casen_rm.rds")      # debe devolver TRUE
+file.exists("data/cons_censo_df.rds") # debe devolver TRUE
+# Se realizo este proceso, debido a un error en el directorio de trabajo en donde este estaba seteado en la carpeta T2 por lo que arrojaba errores al ejecutar la conexión con las Bases de datos en formato .rds
+```
+
+# 1 - Introducción
+
+La movilidad laboral y la distribución temporal del trabajo constituyen dimensiones fundamentales para comprender las dinámicas de equidad en el espacio urbano. En contextos Urbanos como la Región Metropolitana de Santiago, los patrones de desplazamiento y la carga total de trabajo reflejan no solo las condiciones laborales individuales, sino también las desigualdades territoriales en el acceso a oportunidades y servicios.
+
+Tradicionalmente, los análisis de carga laboral se han centrado exclusivamente en las horas trabajadas, omitiendo el tiempo dedicado al transporte entre el lugar de residencia y el trabajo. Esta perspectiva limitada invisibiliza una componente sustancial de la dedicación laboral, particularmente relevante en ciudades caracterizadas por una marcada segregación espacial y extensos tiempos de desplazamiento. Como señalan Castilla-Gutiérrez, Colihuil-Catrileo, Bruneau-Chávez y Lagos-Hernández (2021), “diversas condiciones de trabajo influyen directamente en la carga laboral, lo que tiene un impacto negativo en la calidad de vida, siendo relevante una mayor concientización respecto al contexto y condiciones de trabajo” (p. 230).
+
+Este informe aborda esta brecha mediante el desarrollo de una medida integral de carga laboral que incorpora tanto las horas trabajadas semanales como el tiempo dedicado al transporte, ofreciendo una visión más comprehensiva de las demandas temporales que enfrenta la población ocupada. A través de técnicas de microsimulación espacial, se combina información detallada de la Encuesta CASEN 2022 con datos censales para generar estimaciones a nivel de zona censal, permitiendo identificar patrones territoriales que permanecen ocultos en análisis agregados.
+
+Los resultados obtenidos permiten no solo caracterizar la distribución territorial de la carga laboral en la Región Metropolitana, sino también identificar áreas críticas donde la combinación de extensas jornadas laborales y prolongados tiempos de transporte configura escenarios de especial vulnerabilidad. Este análisis proporciona insumos valiosos para el diseño de políticas públicas orientadas a la reducción de desigualdades territoriales y la mejora de la calidad de vida de los trabajadores.
+
+## 1.1 - Objetivo General
+
+Analizar la distribución espacial de la carga laboral integral en la Región Metropolitana mediante microsimulación.
+
+## 1.2 - Objetivos Específicos
+
+-   Construir indicador de carga laboral que integre horas trabajadas y de transporte
+
+-   Desarrollar modelo de microsimulación espacial CASEN-Censo
+
+-   Identificar patrones territoriales mediante análisis de cuartiles
+
+-   Generar cartografía temática para apoyo a decisiones de política pública
+
+------------------------------------------------------------------------
+
+# 2 - Desarrollo
+
+## 2.1 - Metodología
+
+El estudio emplea un enfoque de microsimulación espacial estática para estimar la carga laboral territorial en la Región Metropolitana. Se utilizaron datos individuales de la Encuesta CASEN 2022, que incluyen horas trabajadas, tiempo de transporte y variables sociodemográficas, combinados con datos agregados del Censo 2017, tanto en formato .rds como en base de datos PostgreSQL con geometrías censales. La integración de estas fuentes permite superar las limitaciones de representatividad territorial propias de las encuestas, mediante la generación de poblaciones sintéticas que reproducen las estructuras demográficas observadas en el censo. El procesamiento se realizó en RStudio (versión 2025.09.1+401) y PostgreSQL (versión 13). Aunque inicialmente se buscó modelar exclusivamente a la población ocupada, dificultades técnicas con la librería rakeR obligaron a ampliar el universo simulado. Esta estrategia metodológica se alinea con lo planteado por Tanton y Edwards (2013), quienes destacan que los modelos de microsimulación espacial se construyen a partir de encuestas representativas y datos censales confiables, lo que permite generar estimaciones detalladas en áreas pequeñas y responder a la necesidad de desagregación territorial en el análisis.
+
+### 2.1.1 - Librerías
+
+```{r Librerías, echo=TRUE, message=FALSE, warning=FALSE}
+library(rakeR)
+library(RPostgres)
+library(DBI)
+library(sf)
+library(dplyr)
+library(VIM)
+library(ggplot2)
+library(ggspatial)
+```
+
+El desarrollo metodológico del estudio utilizo un conjunto de librerías de R especializadas que permitieron la implementación integral del proceso analítico. rakeR facilitó la microsimulación espacial mediante algoritmos de ponderación por entropía máxima para generar poblaciones sintéticas; RPostgres y DBI gestionaron la conexión y operaciones con la base de datos PostgreSQL que almacenó los resultados; sf procesó y manipuló los datos geoespaciales de zonas censales; dplyr optimizó la manipulación y transformación de datos mediante una sintaxis coherente y eficiente; VIM implementó algoritmos de imputación KNN para el tratamiento de valores faltantes; mientras que ggplot2 y ggspatial permitieron la creación de visualizaciones cartográficas profesionales con elementos de mapas estandarizados como escalas y norte. Esta combinación de herramientas permitió un flujo de trabajo reproducible y robusto para el análisis territorial de la carga laboral.
+
+### 2.1.2 - Conexión a las Bases de Datos CASEN 2022 y CENSO 2017
+
+La conexión a las bases de datos CASEN(.rds) y CENSO(.rds) de la Región Metropolitana de Chile, se estableció en utilizando a los siguientes parámetros:
+
+```{r Conexion BD rmds, echo=TRUE, message=FALSE, warning=FALSE}
+ruta_casen = "data/casen_rm.rds"
+ruta_censo = "data/cons_censo_df.rds"
+casen_raw = readRDS(ruta_casen)
+cons_censo_df = readRDS(ruta_censo)
+```
+
+## 2.2 - Análisis de Datos
+
+### 2.2.1 - Preprocesamiento de Datos
+
+El proceso de preprocesamiento de datos inició con la selección y preparación de variables clave tanto del Censo como de la encuesta CASEN. Para el Censo, se identificaron las categorías de edad, escolaridad y sexo que servirían como restricciones en la microsimulación. En la CASEN, se extrajeron variables fundamentales relacionadas con la carga laboral -horas trabajadas, tiempo de viaje y frecuencia de desplazamientos- junto con variables sociodemográmicas predictoras. Previo a la imputación, se realizó un diagnóstico de calidad de datos que reveló patrones significativos de valores faltantes, particularmente en las variables de transporte (20,262 NA en o28a_hr y o28a_min) y horas trabajadas (20,262 NA en o10), así como la presencia de códigos especiales (-88, -8) que requerían tratamiento específico.
+
+```{r Preprocesamiento , echo=TRUE, message=FALSE, warning=FALSE}
+# 3.1 CENSO
+col_cons = sort(setdiff(names(cons_censo_df), c("GEOCODIGO", "COMUNA")))
+age_levels = grep("^edad", col_cons, value = TRUE)
+esc_levels = grep("^esco", col_cons, value = TRUE)
+sexo_levels = grep("^sexo", col_cons, value = TRUE)
+
+# 3.2 CASEN
+vars_base = c("estrato","esc","edad","sexo","e6a","o10","o28a_hr","o28a_min","o28b","ypc")
+casen = casen_raw[, vars_base, drop = FALSE]
+rm(casen_raw)
+
+# Extraer comuna y limpiar estrato
+casen$Comuna = substr(as.character(casen$estrato), 1, 5)
+casen$estrato = NULL
+
+# Quitar etiquetas haven y forzar tipos
+casen$esc = as.integer(unclass(casen$esc))
+casen$edad = as.integer(unclass(casen$edad))
+casen$e6a = as.numeric(unclass(casen$e6a))
+casen$sexo = as.integer(unclass(casen$sexo))
+casen$o10 = as.numeric(unclass(casen$o10))
+casen$o28a_hr = as.numeric(unclass(casen$o28a_hr))
+casen$o28a_min = as.numeric(unclass(casen$o28a_min))
+casen$o28b = as.numeric(unclass(casen$o28b))
+casen$ypc = as.numeric(unclass(casen$ypc))
+
+# Estadísticas previas a la imputación de datos
+resumen_Estadisticas <- data.frame(
+  Variable = c("o10", "o28a_hr", "o28a_min", "o28b", "esc", "ypc"),
+  NAs = sapply(casen[c("o10", "o28a_hr", "o28a_min", "o28b", "esc", "ypc")], 
+               function(x) sum(is.na(x))),
+  Media = sapply(casen[c("o10", "o28a_hr", "o28a_min", "o28b", "esc", "ypc")], 
+                 function(x) round(mean(x, na.rm = TRUE), 2)),
+  Mediana = sapply(casen[c("o10", "o28a_hr", "o28a_min", "o28b", "esc", "ypc")], 
+                   function(x) median(x, na.rm = TRUE))
+)
+
+print("Resumen de Calidad de Datos - Variables Principales:")
+print(resumen_Estadisticas)
+```
+
+### 2.2.2 - Imputación de Datos
+
+La imputación de datos se implementó en dos fases complementarias para garantizar la integridad del conjunto de datos. Inicialmente, se realizó una imputación simple de la variable de escolaridad mediante un modelo de regresión lineal que utilizó el nivel educacional (e6a) como predictor, asegurando coherencia conceptual entre variables relacionadas. Posteriormente, se implementó un algoritmo avanzado de imputación KNN (K-Nearest Neighbors) que operó a nivel comunal, utilizando variables sociodemográficas y económicas como predictores para estimar los valores faltantes en horas trabajadas y variables de transporte. Este enfoque jerárquico, que priorizaba el contexto geográfico mediante la agrupación por comuna, se complementó con mecanismos de respaldo que aplicaban medianas comunales y globales en casos de insuficientes observaciones, garantizando la eliminación completa de valores faltantes mientras se preservaban los patrones territoriales subyacentes en los datos.
+
+```{r Imputación, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+### 3.3.1 IMPUTACIÓN simple de esc por e6a ####
+idx_na = which(is.na(casen$esc))
+if(length(idx_na) > 0) {
+  fit = lm(esc ~ e6a, data = casen[-idx_na,])
+  pred = predict(fit, newdata = casen[idx_na, ,drop = FALSE])
+  casen$esc[idx_na] = as.integer(round(pmax(0, pmin(29, pred))))
+}
+print("Resumen de las estadisticas de escolaridad:")
+print(summary(casen$esc))
+
+### 3.3.2 IMPUTACIÓN DE DATOS CON KNN POR COMUNA ####
+# Configuración de variables para imputación
+variables_objetivo <- c("o10", "o28a_hr", "o28a_min", "o28b")
+predictores_knn <- c("esc", "edad", "sexo", "e6a", "ypc")
+
+# Limpieza de valores especiales
+casen <- casen %>%
+  mutate(across(all_of(variables_objetivo), ~ ifelse(!is.na(.) & . < 0, NA, .)))
+
+# Precalcular medianas globales para cada variable objetivo
+medianas_globales <- sapply(casen[variables_objetivo], function(x) median(x, na.rm = TRUE))
+
+# Función robusta de imputación KNN por comuna
+imputar_comuna_knn <- function(datos_comuna, vars_imputar, vars_predictoras, k_vecinos = 5, medianas_globales) {
+  
+  # Si no hay NAs, retornar los datos originales
+  if(all(colSums(is.na(datos_comuna[vars_imputar])) == 0)) {
+    return(datos_comuna)
+  }
+  
+  # Si hay NAs, proceder con imputación
+  datos_knn <- datos_comuna[, unique(c(vars_imputar, vars_predictoras)), drop = FALSE]
+  casos_completos <- sum(complete.cases(datos_knn))
+  
+  # Si no hay suficientes casos completos, usar medianas (comunales o globales)
+  if(casos_completos < (k_vecinos + 1)) {
+    for (v in vars_imputar) {
+      med_comunal <- median(datos_comuna[[v]], na.rm = TRUE)
+      if (is.finite(med_comunal)) {
+        datos_comuna[[v]] <- ifelse(is.na(datos_comuna[[v]]), med_comunal, datos_comuna[[v]])
+      } else {
+        # Si no se puede calcular la mediana comunal, usar la global
+        datos_comuna[[v]] <- ifelse(is.na(datos_comuna[[v]]), medianas_globales[v], datos_comuna[[v]])
+      }
+    }
+    return(datos_comuna)
+  }
+  
+  # Intentar imputación KNN
+  tryCatch({
+    # Suprimir warnings de VIM::kNN si no deseamos verlos
+    datos_imputados <- suppressWarnings(VIM::kNN(datos_knn, variable = vars_imputar, k = k_vecinos))
+    datos_comuna[, vars_imputar] <- datos_imputados[, vars_imputar]
+    # Verificar si quedan NAs y reemplazar con medianas globales
+    for (v in vars_imputar) {
+      if (any(is.na(datos_comuna[[v]]))) {
+        datos_comuna[[v]] <- ifelse(is.na(datos_comuna[[v]]), medianas_globales[v], datos_comuna[[v]])
+      }
+    }
+    datos_comuna
+  }, error = function(e) {
+    # En caso de error, usar medianas (comunales o globales)
+    for (v in vars_imputar) {
+      med_comunal <- median(datos_comuna[[v]], na.rm = TRUE)
+      if (is.finite(med_comunal)) {
+        datos_comuna[[v]] <- ifelse(is.na(datos_comuna[[v]]), med_comunal, datos_comuna[[v]])
+      } else {
+        datos_comuna[[v]] <- ifelse(is.na(datos_comuna[[v]]), medianas_globales[v], datos_comuna[[v]])
+      }
+    }
+    datos_comuna
+  })
+}
+
+# Aplicación del algoritmo por comuna
+casen <- casen %>%
+  group_by(Comuna) %>%
+  group_modify(~ imputar_comuna_knn(.x, variables_objetivo, predictores_knn, 
+                                    k_vecinos = 5, medianas_globales = medianas_globales)) %>%
+  ungroup()
+```
+
+```{r Estadisticas NA, echo=TRUE, message=FALSE, warning=FALSE}
+# Verificación final de NAs
+resumen_imputacion <- data.frame(
+  Variable = variables_objetivo,
+  NA_Final = sapply(casen[variables_objetivo], function(x) sum(is.na(x)))
+)
+
+print("Resumen del Proceso de Imputación (NAs restantes):")
+print(resumen_imputacion)
+```
+
+-   **Limitaciones y consideraciones metodológicas:** Es importante reconocer que la imputación de un volumen tan significativo de datos (38,674 registros totales con valores faltantes, alcanzando un máximo de 23,354 NA en la variable o28b, lo que representa aproximadamente el 60% de los datos para esa variable) puede haber introducido un efecto de aplanamiento en la variabilidad real y, consecuentemente, reducido la precisión de la microsimulación. Esta decisión metodológica se tomó tras descartar la eliminación de registros debido a errores técnicos recurrentes en el proceso de microsimulación, específicamente errores en las funciones de agregación y advertencias en el cálculo de medianas en subgrupos con datos insuficientes. Si bien esta aproximación permitió completar el conjunto de datos y proceder con el análisis, los resultados deben interpretarse considerando esta limitación inherente y la potencial reducción en la heterogeneidad espacial de las estimaciones.
+
+### 2.2.3 - Calculo de la variable a microsimular
+
+La variable **carga laboral total** se construyó a partir de dos componentes: las horas efectivas de trabajo y el tiempo semanal dedicado al transporte laboral. Las fórmulas utilizadas fueron las siguientes:
+
+**1.       Tiempo de viaje en minutos**
+
+Se calcula a partir de las respuestas sobre duración del viaje al trabajo:
+
+$$
+\text{Tiempo de viaje (minutos)} = (\text{o28a_hr} \times 60) + \text{o28a_min}
+$$
+
+2.       **Tiempo de transporte semanal** (en horas)
+
+Se multiplica el tiempo de viaje por la cantidad de días trabajados a la semana, y se convierte a horas:
+
+$$
+\text{Tiempo de transporte semanal (horas)} = \left( \frac{\text{Tiempo de viajes (minutos) x o28b}}{\text{60}} \right)
+$$
+
+3.       **Carga laboral total** (en horas semanales)
+
+Se suma el tiempo de trabajo semanal con el tiempo de transporte:$$
+\text{Carga laboral total} = \text{o10}  + \text{Tiempo de transporte semanal (horas)}
+$$
+
+Esta variable representa el esfuerzo semanal total dedicado al trabajo, incluyendo tanto las horas laborales como el tiempo de traslado.
+
+```{r Variable, echo=TRUE, message=FALSE, warning=FALSE}
+# 5) calcular la Variable a microsimular 
+casen$tiempo_viaje_minutos <- casen$o28a_hr * 60 + casen$o28a_min
+casen$tiempo_transporte_semanal <- (casen$tiempo_viaje_minutos * casen$o28b) / 60
+casen$carga_laboral_total <- casen$o10 + casen$tiempo_transporte_semanal
+
+print("Resumen de carga_laboral_total:")
+print(summary(casen$carga_laboral_total))
+```
+
+### 2.2.4 - Recodificación de variables
+
+```{r Recodificación , echo=TRUE, message=FALSE, warning=FALSE}
+### 3.4 RE-CODIFICACIÓN
+casen$edad_cat = cut(casen$edad, breaks = c(0,30,40,50,60,70,80,Inf), labels = age_levels, right = FALSE, include.lowest = TRUE)
+casen$esc_cat = factor(with(casen, ifelse(esc == 0, esc_levels[1], ifelse(esc <= 8, esc_levels[2], ifelse(esc <= 12, esc_levels[3], esc_levels[4])))), levels = esc_levels)
+casen$sexo_cat = factor(ifelse(casen$sexo == 2, sexo_levels[1], ifelse(casen$sexo == 1, sexo_levels[2], NA)), levels = sexo_levels)
+casen$ID = as.character(seq_len(nrow(casen)))
+```
+
+La fase de recodificación transformó las variables numéricas continuas en categorías discretas compatibles con la estructura de datos censales, permitiendo la integración armoniosa entre la encuesta CASEN y el Censo para el proceso de microsimulación. La variable de edad se categorizó en siete rangos etarios (0-30, 30-40, 40-50, 50-60, 60-70, 70-80, 80+ años) utilizando la función cut() con intervalos cerrados por la izquierda, asegurando una distribución coherente con las categorías censales predefinidas. La escolaridad se reclasificó en cuatro niveles ordinales (0 años, 1-8 años, 9-12 años, 13+ años) mediante condicionales anidadas que mapearon los años de educación formal a las categorías establecidas en el diccionario censal. La variable de sexo se transformó de codificación numérica (1, 2) a factores descriptivos (hombre, mujer) manteniendo la correspondencia con los niveles censales. Finalmente, se asignó un identificador único a cada registro para garantizar la trazabilidad durante el proceso de microsimulación, estableciendo las bases para el emparejamiento espacial posterior entre individuos sintéticos y zonas censales.
+
+### 2.2.5 - Microsimulación
+
+```{r Microsimulación, echo=TRUE, message=FALSE, warning=FALSE}
+## 4. MICROSIMULACIÓN ####
+cons_censo_comunas = split(cons_censo_df, cons_censo_df$COMUNA)
+inds_list = split(casen, casen$Comuna)
+
+sim_list = lapply(names(cons_censo_comunas), function(zona) {
+  if(!zona %in% names(inds_list)) return(NULL)
+  cons_i    = cons_censo_comunas[[zona]]
+  col_order = sort(setdiff(names(cons_i), c("COMUNA","GEOCODIGO")))
+  cons_i    = cons_i[, c("GEOCODIGO", col_order), drop = FALSE]
+  tmp    = inds_list[[zona]]
+  inds_i = tmp[, c("ID","edad_cat","esc_cat","sexo_cat"), drop = FALSE]
+  names(inds_i) = c("ID","Edad","Escolaridad","Sexo")
+  w_frac  = weight(cons = cons_i, inds = inds_i, vars = c("Edad","Escolaridad","Sexo"))
+  sim_i   = integerise(weights = w_frac, inds = inds_i, seed = 123)
+  merge(sim_i, tmp[, c("ID", "carga_laboral_total")], by = "ID", all.x = TRUE)
+})
+
+sim_list = sim_list[!sapply(sim_list, is.null)]
+sim_df = data.table::rbindlist(sim_list, idcol = "COMUNA")
+
+zonas_carga_laboral = aggregate(carga_laboral_total ~ zone, data = sim_df, FUN  = function(x) median(x, na.rm = TRUE))
+names(zonas_carga_laboral) <- c("geocodigo", "mediana_carga_laboral")
+```
+
+El proceso de microsimulación se realizó utilizando el paquete rakeR. Inicialmente, tanto los datos censales como los individuos de la CASEN fueron segmentados por unidad territorial, estableciendo las bases para una calibración espacialmente contextualizada. Para cada comuna, se aplicó el algoritmo de ponderación por entropía máxima que asignó pesos a los individuos de la encuesta, asegurando que las distribuciones sintéticas de edad, escolaridad y sexo coincidieran exactamente con las estructuras demográficas censales. Posteriormente, la función integerise() transformó estos pesos fraccionarios en individuos enteros, generando una población sintética representativa de cada zona censal.
+
+Finalmente, se calcularon las medianas de carga laboral por zona censal, produciendo el indicador territorial que fundamenta el análisis espacial posterior. Este proceso permitió trasladar las relaciones microeconómicas observadas en la CASEN al marco de distribución poblacional del Censo, generando estimaciones robustas a nivel de desagregación geográfica fina.
+
+### 2.2.6 - Conexión a la base de datos SQL
+
+```{r Conexión BD SQL, echo=TRUE, message=FALSE, warning=FALSE,results='hide'}
+## 5. CONEXIÓN A BD ####
+con = dbConnect(Postgres(), dbname = "censo_rm", host = "localhost", port = 5432, user = "postgres", password = "1234")
+
+# Escribir tabla
+dbWriteTable(con, name = DBI::SQL("output.zonas_carga_laboral"), 
+             value = zonas_carga_laboral, row.names = FALSE, overwrite = TRUE)
+
+query_gs = "SELECT * FROM dpa.zonas_censales_rm WHERE urbano = 1 AND (nom_provin = 'SANTIAGO' OR nom_comuna IN ('PUENTE ALTO', 'SAN BERNARDO'))"
+zonas_gs = st_read(con, query = query_gs)
+zonas_gs$geocodigo = as.character(zonas_gs$geocodigo)
+
+# Unir datos
+zonas_gs_completo = left_join(zonas_gs, zonas_carga_laboral, by = "geocodigo")
+
+# Escribir tabla espacial 
+st_write(zonas_gs_completo, dsn = con, layer = DBI::SQL("output.zc_carga_laboral"))
+dplyr::n_distinct(zonas_gs_completo$mediana_carga_laboral)
+```
+
+Se estableció conexión con la base de datos PostgreSQL para almacenar y gestionar los resultados. Los datos de carga laboral por zona censal fueron escritos en una tabla, mientras que se recuperaron las geometrías de las zonas censales urbanas de Santiago, Puente Alto y San Bernardo. La unión espacial integró los resultados de la microsimulación con las delimitaciones geográficas, creando una capa GIS lista para el análisis cartográfico y consultas espaciales.
+
+------------------------------------------------------------------------
+
+# 3 - Resultado
+
+```{r Grafico, fig.width=15, fig.height=10, out.width="100%", fig.align='center', echo=FALSE, warning=FALSE, message=FALSE}
+## 6. GENERAR MAPA CON CUARTILES ####
+zonas_gs_completo <- zonas_gs_completo %>%
+  mutate(cuartil = factor(ntile(mediana_carga_laboral, 4),
+                          labels = c("Q1 (Baja)", "Q2 (Medio-Baja)", "Q3 (Medio-Alta)", "Q4 (Alta)")))
+
+# 6.1 OBTENER CONTORNOS DE COMUNAS
+comunas_contorno <- zonas_gs_completo %>%
+  group_by(nom_comuna) %>%
+  summarise() %>%
+  st_simplify(preserveTopology = TRUE, dTolerance = 100)
+
+# 6.2 CALCULAR CENTROIDES PARA ETIQUETAS
+centroides_comunas <- comunas_contorno %>%
+  st_centroid() %>%
+  mutate(
+    x = st_coordinates(.)[,1],
+    y = st_coordinates(.)[,2]
+  )
+
+# 6.3 CREAR MAPA ELEGANTE SIN FONDO
+mapa_elegante <- ggplot() +
+  # Capa de zonas censales con colores de cuartiles
+  geom_sf(
+    data = zonas_gs_completo,
+    aes(fill = cuartil),
+    color = "white",  #gray80
+    alpha = 0.85,
+    size = 0.1
+  ) +
+  
+  # Capa de bordes de comunas
+  geom_sf(
+    data = comunas_contorno,
+    fill = NA,
+    color = "black",
+    size = 0.8,
+    alpha = 0.9
+  ) +
+  
+  # Etiquetas de comunas con fondo para legibilidad
+  geom_label(
+    data = centroides_comunas,
+    aes(x = x, y = y, label = nom_comuna),
+    size = 1.8,
+    color = "black",
+    fontface = "bold",
+    fill = "white",
+    alpha = 0.85,
+    linewidth = 0.3,     # Borde del label
+    label.padding = unit(0.2, "lines"),
+    label.r = unit(0.15, "lines")
+  ) +
+  
+  # Escala de colores
+  scale_fill_brewer(
+    palette = "RdYlBu",
+    direction = -1,
+    name = "CUARTILES DE CARGA LABORAL",
+    na.value = "grey90",
+    guide = guide_legend(
+      direction = "horizontal",
+      title.position = "top",
+      title.hjust = 0.5,
+      label.position = "bottom",
+      keywidth = unit(1.5, "cm"),
+      keyheight = unit(0.3, "cm")
+    )
+  ) +
+  
+  # Escala gráfica
+  annotation_scale(
+    location = "bl",
+    bar_cols = c("black", "white"),
+    text_col = "black",
+    text_cex = 0.9,
+    text_face = "bold",
+    height = unit(0.25, "cm"),
+    pad_x = unit(0.4, "cm"),
+    pad_y = unit(0.4, "cm"),
+    line_width = 1.5
+  ) +
+  
+  # Brújula (Cruz del Norte)
+  annotation_north_arrow(
+    location = "tr",
+    which_north = "true",
+    height = unit(1.5, "cm"),
+    width = unit(1.5, "cm"),
+    pad_x = unit(0.3, "cm"),
+    pad_y = unit(0.3, "cm"),
+    style = north_arrow_fancy_orienteering(
+      fill = c("black", "white"),
+      line_col = "black",
+      text_col = "black",
+      line_width = 1.2
+    )
+  ) +
+  
+  # Títulos y etiquetas
+  labs(
+    title = "DISTRIBUCIÓN TERRITORIAL DE LA CARGA LABORAL",
+    subtitle = "Región Metropolitana - Análisis por Zona Censal\nCarga Laboral = Horas Trabajo + Horas Transporte",
+    caption = "Fuente: Microsimulación basada en CASEN 2022 y Censo 2017\nElaboración propia"
+  ) +
+  
+  # Tema minimalista
+  theme_void() +
+  theme(
+    # Títulos principales
+    plot.title = element_text(
+      hjust = 0.5, 
+      face = "bold", 
+      size = 18,
+      margin = margin(b = 8, t = 10),
+      color = "black",
+      family = "sans"
+    ),
+    plot.subtitle = element_text(
+      hjust = 0.5, 
+      size = 12,
+      margin = margin(b = 15, t = 5),
+      color = "black",
+      lineheight = 1.2,
+      family = "sans"
+    ),
+    plot.caption = element_text(
+      hjust = 0.5, 
+      size = 9,
+      color = "grey40",
+      margin = margin(t = 12, b = 5),
+      family = "sans"
+    ),
+    
+    # Leyenda
+    legend.position = "bottom",
+    legend.title = element_text(
+      face = "bold",
+      size = 11,
+      margin = margin(b = 8),
+      color = "black",
+      family = "sans"
+    ),
+    legend.text = element_text(
+      size = 10,
+      color = "black",
+      family = "sans"
+    ),
+    legend.background = element_rect(
+      fill = "white", 
+      color = "black", 
+      linewidth = 0.3
+    ),
+    legend.box.background = element_rect(
+      fill = "white", 
+      color = "black",
+      linewidth = 0.3
+    ),
+    legend.margin = margin(t = 8, b = 8, l = 15, r = 15),
+    legend.box.margin = margin(t = 5, b = 5),
+    
+    # Márgenes y fondo general
+    plot.margin = unit(c(1.0, 1.0, 1.0, 1.0), "cm"),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA)
+  )
+
+# 6.4 GUARDAR MAPA
+#ggsave("mapa_carga_laboral_elegante.png", mapa_elegante, width = 30,height = 25,units = "cm",dpi = 400, bg = "white")
+
+print(mapa_elegante)
+
+```
+
+El mapa de carga laboral revela un patrón complejo que no se explica completamente por la distancia geográfica a las zonas de empleo, sino que también por la interacción entre la ubicación, el tipo de empleo y la congestión urbana.
+
+-   **Carga Baja (Q1)**: Si bien el patrón de distribución no es claro, ya que se tienen múltiples puntos dentro de la RM que poseen esta categoría, reflejado en el hecho de no se encuentra agrupada en un punto fijo de la región, visto gracias a que comunas como Lo Barnechea, Puente Alto, Ñuñoa, Pudahuel, San Joaquín, San Ramon, Pedro Aguirre Cerda y sectores de la comuna de Santiago y San Bernardo, poseen dicha categoría esto podría deberse a la presencia de economías locales sólidas que reducen los desplazamientos largos en tiempo.
+
+-   **Carga Media-Alta (Q3)**: Aquí aparece la observación crucial. Comunas del sector oriente como Las Condes, La Reina y Vitacura no presentan una carga baja, sino media-alta. Esto indica que, a pesar de su proximidad a los polos de empleo, sus residentes no están exentos de una carga laboral significativa.
+
+-   **Carga Alta (Q4)**: Se concentra en el corredor central-poniente (Maipú, Pudahuel, Quinta Normal, Cerro Navia) y en el sur (San Bernardo, El Bosque), zonas que combinan largas distancias con una alta dependencia del transporte público y privado en vías congestionadas.
+
+[**Análisis de las Causas Integrando el Factor "Congestión"**]{.underline}
+
+1.  **El Efecto de los Atascos Viales en el Oriente (Comunas Q3):**
+
+    -   **Congestión Crónica**: Comunas como Las Condes, Vitacura y La Reina son núcleos masivos de empleo. Esto significa que, si bien sus residentes viven cerca de sus trabajos, deben compartir las vías con cientos de miles de personas que ingresan diariamente a estas comunas para trabajar. Avenidas como Kennedy, Apoquindo, Américo Vespucio Oriente y Príncipe de Gales se colapsan en horas punta.
+
+    -   **Paradoja de la Proximidad**: Un trayecto de 5 km en estas zonas puede tomar fácilmente 30-45 minutos o más. Por lo tanto, la "proximidad" en distancia se ve anulada por la "lejanía" en tiempo, incrementando sustancialmente las horas de transporte para quienes residen y trabajan en este sector, incluso si usan auto propio. Esto explica perfectamente su clasificación en el Q3.
+
+2.  **Economías Locales vs. Dependencia (Comunas Q1 del Suroriente)**:
+
+    -   **Empleo Endógeno**: El caso de Puente Alto y Pudahuel como Q1 se refuerza con esta lógica. Al tener sus propios polos de empleo robustos (comercio, servicios, salud), una parte importante de su población puede vivir y trabajar dentro de la misma comuna, evitando por completo los grandes ejes viales congestionados de la ciudad.
+
+    -   **Transporte Masivo Eficiente (Relativo)**: Quienes sí se desplazan desde estas comunas, principalmente usan la Línea 4 del Metro, que, aunque masificada, ofrece un tiempo de viaje más predecible que el transporte superficial atascado en el sector oriente.
+
+3.  **Doble Penalización para el Corredor Poniente (Comunas Q4):**
+
+    -   Las comunas del poniente (Maipú, San Bernardo, etc.) sufren una "doble penalización": deben recorrer largas distancias a través de vías altamente congestionadas (como la Av. San Pablo, Autopista Central, Américo Vespucio Poniente) para llegar a sus centros de empleo en el centro o el oriente. La suma de distancia y congestión resulta en las cargas laborales más altas (Q4).
+
+En síntesis, el mapa no solo muestra dónde viven las personas, sino la **eficiencia de sus desplazamientos**. La congestión vial actúa como un "gravamen" que eleva la carga laboral, afectando incluso a residentes de comunas privilegiadas, y ayuda a entender la aparente paradoja de que la proximidad física no siempre se traduce en una carga baja.
+
+------------------------------------------------------------------------
+
+# 4- Conclusión
+
+El análisis de la distribución territorial de la carga laboral en la Región Metropolitana revela que esta no sigue un patrón simple de centro-periferia, sino que está determinada por la compleja interacción de tres factores clave: la localización de los polos de empleo, la segregación socioeconómica y la eficiencia de la movilidad urbana.
+
+Se identifica un fenómeno central: la proximidad geográfica al empleo no garantiza una baja carga laboral si la conectividad es deficiente. Esto se evidencia en que comunas del sector oriente, como Las Condes y La Reina, presentan una carga medio-alta (Q3) debido a los severos atascos viales, los cuales transforman trayectos cortos en tiempos de desplazamiento prolongados. Paralelamente, el hallazgo de una carga baja (Q1) en comunas del suroriente como Puente Alto y La Florida sugiere el surgimiento de economías locales sólidas y subcentros de empleo que permiten a una parte significativa de su población trabajar cerca de su lugar de residencia, reduciendo así el tiempo de transporte.
+
+En contraste, el corredor poniente y sur (Maipú, San Bernardo, sectores de Renca y Quilicura) soporta la carga más alta (Q4), siendo el sector más penalizado por la combinación de largas distancias, dependencia de trabajos en otras comunas y una red vial crónicamente congestionada.
+
+En definitiva, este estudio demuestra que la carga laboral es un indicador que sintetiza tanto las desigualdades socioeconómicas como las fallas en la planificación urbana. Como advierte Patlán Pérez (2013), *“la sobrecarga en el trabajo tiene un elevado efecto positivo y significativo en dos factores del burnout: agotamiento emocional e insatisfacción de logro”* (p. 453), lo que refuerza que la carga laboral no solo se expresa en tiempos de desplazamiento, sino también en impactos directos sobre la calidad de vida. Para mitigarla, se requieren políticas públicas que no solo fomenten la descentralización del empleo, sino que también prioricen una mejora sustancial e integral del transporte público y la gestión de la congestión, entendiendo que la calidad de vida de los habitantes de una metrópoli se juega, en gran medida, en la eficiencia de sus desplazamientos diarios.
+
+------------------------------------------------------------------------
+
+# 5 - Bibliografía
+
+-   Castilla-Gutiérrez, S., Colihuil-Catrileo, R., Bruneau-Chávez, J., & Lagos-Hernández, R. (2021). Carga laboral y efectos en la calidad de vida de docentes universitarios y de enseñanza media. Chakiñan, Revista de Ciencias Sociales y Humanidades, (15), 229–248. <http://scielo.senescyt.gob.ec/scielo.php?script=sci_arttext&pid=S2550-67222021000300166>
+
+-   Tanton, R., & Edwards, K. L. (Eds.). (2013). *Spatial microsimulation: A reference guide for users*. Springer. <https://content.e-bookshelf.de/media/reading/L-3947244-6c5346513a.pdf>
+
+-   Patlán Pérez, J. (2013). Efecto del burnout y la sobrecarga en la calidad de vida en el trabajo. *Estudios Gerenciales, 29*(129), 445–455. <http://www.scielo.org.co/pdf/eg/v29n129/v29n129a08.pdf>
+
+-   Diario Financiero. (2023, 27 de septiembre). *¿Hay solución para la congestión vehicular?* Diario Financiero. Recuperado de <https://www.df.cl/periodismo-de-soluciones/hay-solucion-para-la-congestion-vehicular>
